@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Create Community</title>
+    <link rel="stylesheet" href="home.css">
+</head>
+<body>
+    <div class="container">
+        <h2>Create a New Community</h2>
+        <div class="collection">
+        <form action="/create-community" method="POST">
+            <label>Community Name:</label>
+            <input type="text" name="community" placeholder="Enter name (e.g. quo.gaming)" required>
+
+            <label>Age Restriction:</label>
+            <input type="number" name="age" placeholder="Minimum Age" required>
+
+            <label>Description:</label>
+            <textarea name="description" placeholder="Describe your community..." required></textarea>
+
+            <button type="submit">Create Community</button>
+        </form>
+        </div>
+    </div>
+</body>
+</html>

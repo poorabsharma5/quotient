@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Create Post</title>
+    <link rel="stylesheet" href="home.css">
+    <script>
+        async function loadCommunities() {
+            try {
+                const response = await fetch('/get-communities');
+                const communities = await response.json();
+
+                if (!Array.isArray(communities)) {
+                    console.error("Expected an array, but got:", communities);
+                    return;
+                }
+
+                let select = document.getElementById("community");
+                select.innerHTML = `<option value="" disabled selected>Choose a Community</option>`;
+
+                select.innerHTML += communities
+                    .map(c => `<option value="${c}">${c}</option>`)
+                    .join("");
+
+            } catch (error) {
+                console.error("Error loading communities:", error);
+            }
+        }
+        window.onload = loadCommunities;
+    </script>
+</head>
+<body>
+    <div class="container">
+        <h2>Create a New Post</h2>
+        <div class="collcetion">
+        <form action="/create-post" method="POST">
+            <label>Choose Community:</label>
+            <select id="community" name="community"></select>
+
+            <label>Title:</label>
+            <input type="text" name="title" required>
+
+            <label>Brief:</label>
+            <textarea name="brief" required></textarea>
+
+            <button type="submit">Post</button>
+        </form>
+        </div>
+    </div>
+</body>
+</html>

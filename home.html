@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quotient Home</title>
+    <link rel="stylesheet" href="home.css">
+</head>
+<body>
+
+    <div class="navbar">
+        <img src="QUOTIENT.svg" alt="logo" class="logo">
+        <input type="text" id="search-bar" placeholder="Search..." class="search-bar" oninput="handleSearch()">
+        <div class="icons">
+            
+            <div class="dropdown">
+                <button class="new-post-btn">+ New</button>
+                <div class="dropdown-content">
+                    <a href="new-community.html">Create Community</a>
+                    <a href="new-post.html">Create Post</a>
+                </div>
+            </div>
+
+            <img src="dm.svg" alt="Direct Messages" class="icon">
+            <div class="dropdown">
+                <img src="profilepic.svg" alt="Profile Picture" class="icon">
+                <div class="dropdown-content">
+                    <a href="/logout">Logout</a>
+                </div>
+            </div>
+            
+        </div>
+    </div>
+    
+    <div class="content-wrapper">
+        <div class="container">
+            <div class="main-content">
+                <h2>Home Feed</h2>
+                <div id="posts-container">
+                    <p class="empty-message">Loading posts...</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="right-sidebar">
+            <h3>Your Communities</h3>
+            <ul id="user-communities">
+                <p class="empty-message">No communities joined.</p>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        async function loadUserCommunities() {
+            const response = await fetch('/get-user-communities');
+            const communities = await response.json();
+            const list = document.getElementById("user-communities");
+            
+            if (communities.length === 0) {
+                list.innerHTML = `<p class="empty-message">No communities joined.</p>`;
+            } else {
+                list.innerHTML = communities.map(c => `<li>${c}</li>`).join("");
+            }
+        }
+        loadUserCommunities();
+    </script>
+        
+    <script>
+        async function fetchPosts(query = "") {
+    try {
+        const response = await fetch("/getPosts");
+        const posts = await response.json();
+
+        if (!Array.isArray(posts)) {
+            console.error("Expected an array, but got:", posts);
+            return;
+        }
+
+        const filteredPosts = query
+            ? posts.filter(post => post.title.toLowerCase().includes(query.toLowerCase()))
+            : posts;
+
+        const container = document.getElementById("posts-container");
+        container.innerHTML = ""; 
+
+        if (filteredPosts.length === 0) {
+            container.innerHTML = `<p class="empty-message">No posts available.</p>`;
+            return;
+        }
+
+        filteredPosts.forEach(post => {
+            let reactionsHTML = Object.entries(post.reactions || {})
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 3)
+                .map(([emoji, count]) => `<span>${emoji} ${count}</span>`)
+                .join(" ");
+
+            container.innerHTML += `
+                <div class="post">
+                    <div class="community">
+                        <div class="profile-pic"></div>
+                        <span>${post.community}</span>
+                    </div>
+                    <div class="post-content">
+                        <h3>${post.title}</h3>
+                        <p>${post.brief}</p>
+                        <div class="actions">${reactionsHTML}</div>
+                        <button class="discuss">Discuss</button>
+                    </div>
+                </div>`;
+        });
+    } catch (error) {
+        console.error("Error fetching posts:", error);
+    }
+}
+
+
+async function fetchCommunities(query) {
+    try {
+        const response = await fetch('/get-communities');
+        const communities = await response.json();
+
+        if (!Array.isArray(communities)) {
+            console.error("Expected an array, but got:", communities);
+            return;
+        }
+
+        const filteredCommunities = communities.filter(comm => comm.toLowerCase().includes(query.toLowerCase()));
+
+        console.log("Filtered Communities:", filteredCommunities);
+
+        const container = document.getElementById("posts-container");
+        container.innerHTML = ""; 
+
+        if (filteredCommunities.length === 0) {
+            container.innerHTML = `<p class="empty-message">No communities found.</p>`;
+            return;
+        }
+
+        const userCommunities = await fetch('/get-user-communities').then(res => res.json());
+
+        filteredCommunities.forEach(comm => {
+            let isJoined = Array.isArray(userCommunities) && userCommunities.includes(comm);
+
+            let communityItem = document.createElement("div");
+            communityItem.className = "community-item";
+            communityItem.innerHTML = `
+                <span>${comm}</span>
+                <button class="join-btn" ${isJoined ? 'disabled' : ''} onclick="joinCommunity('${comm}')">
+                    ${isJoined ? 'Joined' : 'Join'}
+                </button>
+            `;
+
+            container.appendChild(communityItem);
+        });
+    } catch (error) {
+        console.error("Error fetching communities:", error);
+    }
+}
+
+
+
+
+        async function joinCommunity(community) {
+            const response = await fetch('/join-community', {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ community })
+            });
+
+            if (response.ok) {
+                loadUserCommunities();
+                handleSearch(); 
+            }
+        }
+
+        function handleSearch() {
+            const query = document.getElementById("search-bar").value.trim();
+
+            if (query.startsWith("quo.")) {
+                fetchCommunities(query);
+            } else {
+                fetchPosts(query);
+            }
+        }
+
+        fetchPosts(); 
+    </script>
+
+</body>
+</html>
