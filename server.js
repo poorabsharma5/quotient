@@ -17,7 +17,10 @@ app.use(express.static(__dirname));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
-mongoose.connect("mongodb://localhost:27017/users", { useNewUrlParser: true, useUnifiedTopology: true });
+mongoose.connect(process.env.MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true })
+    .then(() => console.log("Connected to MongoDB Atlas"))
+    .catch(err => console.error("MongoDB connection error:", err));
+
 const db = mongoose.connection;
 db.once("open", () => console.log("Connected to MongoDB"));
 
