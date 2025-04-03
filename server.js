@@ -436,7 +436,7 @@ app.get('/api/notifications', async (req, res) => {
                             postBrief: post.brief,
                             username: user,
                             emoji: emoji,
-                            createdAt: post.createdAt // Using post creation date as we don't store reaction dates
+                            createdAt: post.createdAt
                         });
                     });
                 }
