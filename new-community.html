@@ -4,25 +4,97 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Create Community</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="home.css">
+    <style>
+        .form-floating > label { color: #6c757d; }
+        .btn-primary { background-color: #4f46e5; border-color: #4f46e5; }
+        .btn-primary:hover { background-color: #4338ca; border-color: #4338ca; }
+        .card { border: none; }
+        
+        /* Improved input styles */
+        .form-control {
+            color: #1a1a1a !important;
+        }
+        
+        /* Full width styles */
+        body {
+            background-color: rgb(249 250 251);
+            min-height: 100vh;
+        }
+        
+        .container {
+            width: 100% !important;
+            max-width: none !important;
+            padding: 2rem;
+        }
+        
+        .col-md-8 {
+            max-width: 42rem;
+            margin: 0 auto;
+        }
+    </style>
 </head>
-<body>
-    <div class="container">
-        <h2>Create a New Community</h2>
-        <div class="collection">
-        <form action="/create-community" method="POST">
-            <label>Community Name:</label>
-            <input type="text" name="community" placeholder="Enter name (e.g. quo.gaming)" required>
+<body class="bg-light">
+    <div class="container py-5">
+        <div class="row justify-content-center">
+            <div class="col-md-8 col-lg-6">
+                <div class="card shadow-lg rounded-3">
+                    <div class="card-body p-4 p-md-5">
+                        <div class="text-center mb-4">
+                            <img src="QUOTIENT.svg" alt="Quotient Logo" class="mb-4" style="height: 40px;">
+                            <h2 class="card-title fw-bold">Create a New Community</h2>
+                            <p class="text-muted">Start something amazing today</p>
+                        </div>
+                        <form action="/create-community" method="POST" class="needs-validation" novalidate>
+                            <div class="form-floating mb-4">
+                                <input type="text" class="form-control" id="communityName" name="community" 
+                                       placeholder="Enter name" pattern="quo\.[a-zA-Z0-9]+" required>
+                                <label for="communityName">Community Name (e.g. quo.gaming)</label>
+                                <div class="invalid-feedback">Please enter a valid community name starting with 'quo.'</div>
+                            </div>
 
-            <label>Age Restriction:</label>
-            <input type="number" name="age" placeholder="Minimum Age" required>
+                            <div class="form-floating mb-4">
+                                <input type="number" class="form-control" id="ageRestriction" name="age" 
+                                       placeholder="Minimum Age" min="13" max="21" required>
+                                <label for="ageRestriction">Age Restriction</label>
+                                <div class="invalid-feedback">Please enter an age between 13 and 21</div>
+                            </div>
 
-            <label>Description:</label>
-            <textarea name="description" placeholder="Describe your community..." required></textarea>
+                            <div class="form-floating mb-4">
+                                <textarea class="form-control" id="description" name="description" 
+                                          style="height: 120px" placeholder="Describe your community" required></textarea>
+                                <label for="description">Description</label>
+                                <div class="invalid-feedback">Please provide a community description</div>
+                            </div>
 
-            <button type="submit">Create Community</button>
-        </form>
+                            <div class="d-grid gap-2">
+                                <button type="submit" class="btn btn-primary btn-lg">Create Community</button>
+                                <a href="/home.html" class="btn btn-link text-decoration-none">Back to Home</a>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Enable Bootstrap form validation
+        (() => {
+            'use strict';
+            const forms = document.querySelectorAll('.needs-validation');
+            Array.from(forms).forEach(form => {
+                form.addEventListener('submit', event => {
+                    if (!form.checkValidity()) {
+                        event.preventDefault();
+                        event.stopPropagation();
+                    }
+                    form.classList.add('was-validated');
+                }, false);
+            });
+        })();
+    </script>
 </body>
 </html>

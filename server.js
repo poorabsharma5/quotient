@@ -10,19 +10,34 @@ app.use(session({
     secret: "quotient",
     resave: false,
     saveUninitialized: true,
-    cookie: { secure: false }
+    rolling: true, // Refresh session expiration on each request
+    cookie: { 
+        secure: false,
+        maxAge: 7 * 24 * 60 * 60 * 1000 // Session expires after 7 days of inactivity
+    }
 }));
 
 app.use(express.static(__dirname));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
-mongoose.connect(process.env.MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true })
-    .then(() => console.log("Connected to MongoDB Atlas"))
-    .catch(err => console.error("MongoDB connection error:", err));
+// MongoDB local connection configuration
+const MONGO_URI = 'mongodb://127.0.0.1:27017/quotient';
+
+mongoose.connect(MONGO_URI)
+    .then(() => {
+        console.log("Connected to local MongoDB successfully");
+    })
+    .catch(err => {
+        console.error("MongoDB connection error:", err);
+        console.log("\nTroubleshooting steps:");
+        console.log("1. Make sure MongoDB is installed");
+        console.log("2. Ensure MongoDB service is running");
+        console.log("3. Check if MongoDB Compass can connect to mongodb://localhost:27017");
+    });
 
 const db = mongoose.connection;
-db.once("open", () => console.log("Connected to MongoDB"));
+db.once("open", () => console.log("Database connection established successfully"));
 
 const userSchema = new mongoose.Schema({
     name: String,
@@ -39,13 +54,34 @@ const postSchema = new mongoose.Schema({
     brief: String,
     community: String,
     username: String,
+    createdAt: { type: Date, default: Date.now },
     reactions: {
-        "👍": { type: Number, default: 0 },
-        "😂": { type: Number, default: 0 },
-        "😢": { type: Number, default: 0 },
-        "🔥": { type: Number, default: 0 },
-        "🙏": { type: Number, default: 0 }
-    }
+        "👍": { 
+            count: { type: Number, default: 0 },
+            users: [{ type: String }]  // Array of usernames who reacted
+        },
+        "😂": { 
+            count: { type: Number, default: 0 },
+            users: [{ type: String }]
+        },
+        "😢": { 
+            count: { type: Number, default: 0 },
+            users: [{ type: String }]
+        },
+        "🔥": { 
+            count: { type: Number, default: 0 },
+            users: [{ type: String }]
+        },
+        "🙏": { 
+            count: { type: Number, default: 0 },
+            users: [{ type: String }]
+        }
+    },
+    comments: [{
+        username: String,
+        content: String,
+        createdAt: { type: Date, default: Date.now }
+    }]
 });
 
 const communitySchema = new mongoose.Schema({
@@ -192,6 +228,229 @@ app.post("/register", async (req, res) => {
     await user.save();
     req.session.username = username;
     res.redirect("/home.html");
+});
+
+// Get current user
+app.get('/api/current-user', (req, res) => {
+    if (req.session.username) {
+        res.json({ username: req.session.username });
+    } else {
+        res.status(401).json({ error: 'Not logged in' });
+    }
+});
+
+// Get single post
+app.get('/api/post/:id', async (req, res) => {
+    try {
+        const post = await Post.findById(req.params.id);
+        if (!post) {
+            return res.status(404).json({ error: 'Post not found' });
+        }
+        res.json(post);
+    } catch (error) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Add comment to post
+app.post('/api/post/:id/comment', async (req, res) => {
+    if (!req.session.username) {
+        return res.status(401).json({ error: 'Not logged in' });
+    }
+
+    try {
+        const post = await Post.findById(req.params.id);
+        if (!post) {
+            return res.status(404).json({ error: 'Post not found' });
+        }
+
+        post.comments.push({
+            username: req.session.username,
+            content: req.body.content
+        });
+
+        await post.save();
+        res.json(post);
+    } catch (error) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Add/toggle reaction to post
+app.post('/leave-community', async (req, res) => {
+    if (!req.session.username) {
+        return res.status(401).json({ error: "Session expired. Please log in again." });
+    }
+
+    try {
+        const { community } = req.body;
+        const username = req.session.username;
+
+        // Update User document
+        const user = await User.findOne({ username });
+        if (!user) {
+            return res.status(404).json({ error: "User not found" });
+        }
+
+        user.joinedCommunities = user.joinedCommunities.filter(c => c !== community);
+        await user.save();
+
+        // Update Community document
+        const comm = await Community.findOne({ community });
+        if (comm) {
+            comm.members = comm.members.filter(m => m !== username);
+            await comm.save();
+        }
+
+        res.json({ message: "Left community successfully" });
+    } catch (error) {
+        console.error("Error leaving community:", error);
+        res.status(500).json({ error: "Server error" });
+    }
+});
+
+app.post('/api/post/:id/react', async (req, res) => {
+    if (!req.session.username) {
+        return res.status(401).json({ error: 'Not logged in' });
+    }
+
+    try {
+        const post = await Post.findById(req.params.id);
+        if (!post) {
+            return res.status(404).json({ error: 'Post not found' });
+        }
+
+        const { emoji } = req.body;
+        const username = req.session.username;
+
+        // Check if user has already reacted with this emoji
+        const hasReacted = post.reactions[emoji].users.includes(username);
+
+        if (hasReacted) {
+            // Remove reaction
+            post.reactions[emoji].users = post.reactions[emoji].users.filter(user => user !== username);
+            post.reactions[emoji].count--;
+        } else {
+            // Add reaction
+            post.reactions[emoji].users.push(username);
+            post.reactions[emoji].count++;
+        }
+
+        await post.save();
+        res.json(post);
+    } catch (error) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Get posts created by the current user
+app.get('/api/user/posts', async (req, res) => {
+    if (!req.session.username) {
+        return res.status(401).json({ error: 'Not logged in' });
+    }
+
+    try {
+        const username = req.session.username;
+        const posts = await Post.find({ username });
+        res.json(posts);
+    } catch (error) {
+        console.error('Error fetching user posts:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Search posts by text in title or brief
+app.get('/api/search-posts', async (req, res) => {
+    if (!req.session.username) {
+        return res.status(401).json({ error: 'Not logged in' });
+    }
+
+    try {
+        const { query } = req.query;
+        const username = req.session.username;
+        const user = await User.findOne({ username });
+
+        if (!user || !Array.isArray(user.joinedCommunities)) {
+            return res.json([]);
+        }
+
+        // Search for posts in user's communities that match the query in title or brief
+        const posts = await Post.find({
+            community: { $in: user.joinedCommunities },
+            $or: [
+                { title: { $regex: query, $options: 'i' } },
+                { brief: { $regex: query, $options: 'i' } }
+            ]
+        });
+
+        res.json(posts || []);
+    } catch (error) {
+        console.error('Error searching posts:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Get notifications for the current user
+app.get('/api/notifications', async (req, res) => {
+    if (!req.session.username) {
+        return res.status(401).json({ error: 'Not logged in' });
+    }
+
+    try {
+        const username = req.session.username;
+        
+        // Find all posts created by the current user
+        const userPosts = await Post.find({ username });
+        
+        if (!userPosts || userPosts.length === 0) {
+            return res.json([]);
+        }
+        
+        // Collect all interactions (reactions and comments) from these posts
+        const notifications = [];
+        
+        userPosts.forEach(post => {
+            // Process comments
+            if (post.comments && post.comments.length > 0) {
+                post.comments.forEach(comment => {
+                    notifications.push({
+                        type: 'comment',
+                        postId: post._id,
+                        postTitle: post.title,
+                        postBrief: post.brief,
+                        username: comment.username,
+                        content: comment.content,
+                        createdAt: comment.createdAt
+                    });
+                });
+            }
+            
+            // Process reactions
+            Object.entries(post.reactions).forEach(([emoji, data]) => {
+                if (data.users && data.users.length > 0) {
+                    data.users.forEach(user => {
+                        notifications.push({
+                            type: 'reaction',
+                            postId: post._id,
+                            postTitle: post.title,
+                            postBrief: post.brief,
+                            username: user,
+                            emoji: emoji,
+                            createdAt: post.createdAt // Using post creation date as we don't store reaction dates
+                        });
+                    });
+                }
+            });
+        });
+        
+        // Sort notifications by date (newest first)
+        notifications.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        
+        res.json(notifications);
+    } catch (error) {
+        console.error('Error fetching notifications:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
 });
 
 app.listen(port, () => {

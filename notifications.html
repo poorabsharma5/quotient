@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Notifications - Quotient</title>
+    <link rel="stylesheet" href="home.css">
+    <style>
+        .notification-item {
+            background: #1a1a1a;
+            border: 1px solid rgba(84, 20, 100, 0.6);
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 16px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            cursor: pointer;
+        }
+
+        .notification-item:hover {
+            transform: translateY(-2px);
+            border-color: rgba(31, 17, 163, 0.8);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+        }
+
+        .notification-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+
+        .notification-type {
+            font-weight: bold;
+            color: rgb(19, 60, 150);
+        }
+
+        .notification-time {
+            color: #999999;
+            font-size: 0.9em;
+        }
+
+        .notification-content {
+            color: #cccccc;
+            margin-bottom: 10px;
+            line-height: 1.5;
+        }
+
+        .notification-post {
+            background-color: #2a2a2a;
+            border-radius: 8px;
+            padding: 12px;
+            border: 1px solid #404040;
+            margin-top: 10px;
+        }
+
+        .notification-post-title {
+            font-weight: bold;
+            color: #ffffff;
+            margin-bottom: 5px;
+        }
+
+        .notification-post-brief {
+            color: #cccccc;
+            font-size: 0.9em;
+        }
+
+        .empty-message {
+            text-align: center;
+            padding: 40px;
+            color: #999999;
+            font-size: 1.1em;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="navbar">
+        <img src="QUOTIENT.svg" alt="logo" class="logo" onclick="window.location.href='/home.html'">
+        <input type="text" id="search-bar" placeholder="Search..." class="search-bar" oninput="handleSearch()">
+        <div class="icons">
+            
+            <div class="dropdown">
+                <button class="new-post-btn">+ New</button>
+                <div class="dropdown-content">
+                    <a href="new-community.html">Create Community</a>
+                    <a href="new-post.html">Create Post</a>
+                </div>
+            </div>
+
+            <img src="dm.svg" alt="Direct Messages" class="icon" onclick="window.location.href='/notifications.html'">
+            <div class="dropdown">
+                <img src="profilepic.svg" alt="Profile Picture" class="icon">
+                <div class="dropdown-content">
+                    <a href="/profile.html">Profile</a>
+                    <a href="/logout">Logout</a>
+                </div>
+            </div>
+            
+        </div>
+    </div>
+    
+    <div class="content-wrapper">
+        <div class="container">
+            <div class="main-content">
+                <h2>Notifications</h2>
+                <div id="notifications-container">
+                    <p class="empty-message">Loading notifications...</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="right-sidebar">
+            <h3>Your Communities</h3>
+            <ul type="none" id="user-communities">
+                <p class="empty-message">No communities joined.</p>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        async function loadUserCommunities() {
+            const response = await fetch('/get-user-communities');
+            const communities = await response.json();
+            const list = document.getElementById("user-communities");
+            
+            if (communities.length === 0) {
+                list.innerHTML = `<p class="empty-message">No communities joined.</p>`;
+            } else {
+                list.innerHTML = communities.map(c => `
+                    <li>
+                        <div class="community">
+                            <span>${c}</span>
+                            <button class="join-btn" onclick="leaveCommunity('${c}')">Leave</button>
+                        </div>
+                    </li>
+                `).join("");
+            }
+        }
+
+        async function leaveCommunity(community) {
+            try {
+                const response = await fetch('/leave-community', {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ community })
+                });
+
+                if (response.ok) {
+                    loadUserCommunities();
+                }
+            } catch (error) {
+                console.error('Error leaving community:', error);
+            }
+        }
+
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            return date.toLocaleString(undefined, {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: true
+                // Removed timeZoneName to fix timezone display issue
+            });
+        }
+
+        function viewPost(postId) {
+            window.location.href = `/post-view.html?id=${postId}`;
+        }
+
+        async function fetchNotifications() {
+            try {
+                const response = await fetch('/api/notifications');
+                const notifications = await response.json();
+                const container = document.getElementById('notifications-container');
+                
+                if (notifications.length === 0) {
+                    container.innerHTML = '<p class="empty-message">No notifications yet.</p>';
+                    return;
+                }
+
+                container.innerHTML = notifications.map(notification => {
+                    let typeText = '';
+                    let contentText = '';
+                    
+                    if (notification.type === 'reaction') {
+                        typeText = 'New Reaction';
+                        contentText = `${notification.username} reacted with ${notification.emoji} to your post`;
+                    } else if (notification.type === 'comment') {
+                        typeText = 'New Comment';
+                        contentText = `${notification.username} commented: "${notification.content}"`;
+                    }
+                    
+                    return `
+                        <div class="notification-item" onclick="viewPost('${notification.postId}')">
+                            <div class="notification-header">
+                                <span class="notification-type">${typeText}</span>
+                                <span class="notification-time">${formatDate(notification.createdAt)}</span>
+                            </div>
+                            <div class="notification-content">${contentText}</div>
+                            <div class="notification-post">
+                                <div class="notification-post-title">${notification.postTitle}</div>
+                                <div class="notification-post-brief">${notification.postBrief}</div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            } catch (error) {
+                console.error('Error fetching notifications:', error);
+                document.getElementById('notifications-container').innerHTML = 
+                    '<p class="empty-message">Error loading notifications. Please try again.</p>';
+            }
+        }
+
+        function handleSearch() {
+            const query = document.getElementById("search-bar").value.trim();
+
+            if (query.startsWith("quo.") || query) {
+                window.location.href = `/home.html?search=${encodeURIComponent(query)}`;
+            }
+        }
+
+        // Load data when page loads
+        loadUserCommunities();
+        fetchNotifications();
+    </script>
+
+</body>
+</html>

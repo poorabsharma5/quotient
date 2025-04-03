@@ -4,7 +4,40 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Create Post</title>
+    <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="home.css">
+    <style>
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .fade-in { animation: fadeIn 0.3s ease-out; }
+        
+        /* Improved input styles */
+        input, textarea, select {
+            color: #1a1a1a !important;
+        }
+        
+        select option {
+            color: #1a1a1a;
+            background-color: white;
+        }
+        
+        /* Full width background */
+        body {
+            background-color: rgb(249 250 251);
+        }
+        
+        .container {
+            width: 100%;
+            max-width: none;
+            padding: 2rem;
+        }
+        
+        .max-w-2xl {
+            max-width: 42rem;
+        }
+    </style>
     <script>
         async function loadCommunities() {
             try {
@@ -27,26 +60,121 @@
                 console.error("Error loading communities:", error);
             }
         }
+
+        function validateForm(event) {
+            const form = event.target;
+            const title = form.title.value.trim();
+            const brief = form.brief.value.trim();
+            const community = form.community.value;
+
+            let isValid = true;
+            
+            // Reset previous error states
+            document.querySelectorAll('.error-message').forEach(el => el.remove());
+            document.querySelectorAll('.error-border').forEach(el => {
+                el.classList.remove('error-border', 'border-red-500');
+                el.classList.add('border-gray-300');
+            });
+
+            if (!community) {
+                showError('community', 'Please select a community');
+                isValid = false;
+            }
+
+            if (!title) {
+                showError('title', 'Title is required');
+                isValid = false;
+            } else if (title.length < 3) {
+                showError('title', 'Title must be at least 3 characters long');
+                isValid = false;
+            }
+
+            if (!brief) {
+                showError('brief', 'Brief description is required');
+                isValid = false;
+            } else if (brief.length < 10) {
+                showError('brief', 'Brief must be at least 10 characters long');
+                isValid = false;
+            }
+
+            if (!isValid) {
+                event.preventDefault();
+            }
+        }
+
+        function showError(fieldId, message) {
+            const field = document.getElementById(fieldId);
+            field.classList.remove('border-gray-300');
+            field.classList.add('error-border', 'border-red-500');
+            
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'error-message text-red-500 text-sm mt-1';
+            errorDiv.textContent = message;
+            field.parentNode.appendChild(errorDiv);
+        }
+
         window.onload = loadCommunities;
     </script>
 </head>
-<body>
-    <div class="container">
-        <h2>Create a New Post</h2>
-        <div class="collcetion">
-        <form action="/create-post" method="POST">
-            <label>Choose Community:</label>
-            <select id="community" name="community"></select>
+<body class="bg-gray-50 min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <div class="max-w-2xl mx-auto bg-white rounded-xl shadow-lg p-8 fade-in">
+            <div class="text-center mb-8">
+                <img src="QUOTIENT.svg" alt="Quotient Logo" class="h-10 mx-auto mb-4">
+                <h2 class="text-3xl font-bold text-gray-800">Create a New Post</h2>
+                <p class="text-gray-600 mt-2">Share your thoughts with the community</p>
+            </div>
 
-            <label>Title:</label>
-            <input type="text" name="title" required>
+            <form action="/create-post" method="POST" class="space-y-6" onsubmit="validateForm(event)">
+                <div class="space-y-2">
+                    <label for="community" class="block text-sm font-medium text-gray-700">Choose Community</label>
+                    <select id="community" name="community" 
+                            class="w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white transition-colors duration-200">
+                    </select>
+                </div>
 
-            <label>Brief:</label>
-            <textarea name="brief" required></textarea>
+                <div class="space-y-2">
+                    <label for="title" class="block text-sm font-medium text-gray-700">Title</label>
+                    <input type="text" id="title" name="title" placeholder="Enter a catchy title"
+                           class="w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors duration-200"
+                           maxlength="100">
+                    <div class="text-right text-sm text-gray-500">
+                        <span id="titleCount">0</span>/100
+                    </div>
+                </div>
 
-            <button type="submit">Post</button>
-        </form>
+                <div class="space-y-2">
+                    <label for="brief" class="block text-sm font-medium text-gray-700">Brief Description</label>
+                    <textarea id="brief" name="brief" rows="4" placeholder="Write a brief description of your post"
+                              class="w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors duration-200"
+                              maxlength="500"></textarea>
+                    <div class="text-right text-sm text-gray-500">
+                        <span id="briefCount">0</span>/500
+                    </div>
+                </div>
+
+                <div class="pt-4">
+                    <button type="submit" 
+                            class="w-full bg-indigo-600 text-white py-3 px-6 rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-all duration-200 transform hover:scale-[1.02]">
+                        Create Post
+                    </button>
+                    <a href="/home.html" class="block text-center mt-4 text-gray-600 hover:text-indigo-600 transition-colors duration-200">
+                        Back to Home
+                    </a>
+                </div>
+            </form>
         </div>
     </div>
+
+    <script>
+        // Character counter for title and brief
+        document.getElementById('title').addEventListener('input', function() {
+            document.getElementById('titleCount').textContent = this.value.length;
+        });
+
+        document.getElementById('brief').addEventListener('input', function() {
+            document.getElementById('briefCount').textContent = this.value.length;
+        });
+    </script>
 </body>
 </html>

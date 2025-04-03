@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>View Post</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <link rel="stylesheet" href="home.css">
+    <style>
+        .loading-container, .error-container {
+            padding: 20px;
+            text-align: center;
+            background-color: white;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        
+        .loading-message {
+            font-size: 18px;
+            color: #555;
+        }
+        
+        .error-message {
+            font-size: 18px;
+            color: #e74c3c;
+            margin-bottom: 15px;
+        }
+        
+        .reaction {
+            margin-right: 10px;
+            padding: 5px 10px;
+            border-radius: 20px;
+            background-color: #f5f5f5;
+            transition: background-color 0.2s;
+        }
+        
+        .reaction:hover {
+            background-color: #e0e0e0;
+        }
+        
+        .active-reaction {
+            background-color: #e0f7fa;
+            color: #0288d1;
+        }
+        
+        .comment {
+            padding: 15px;
+            border-bottom: 1px solid #eee;
+            margin:10px;
+        }
+        
+        .comment:last-child {
+            border-bottom: none;
+        }
+        
+        .comment-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+        
+        .comment-username {
+            font-weight: bold;
+            color: #e2e2e2;
+        }
+        
+        .comment-date {
+            color: #e2e2e2;
+            font-size: 0.9em;
+        }
+        
+        .comment-content {
+            color: #dbdbdb;
+            line-height: 1.5;
+        }
+        
+        .no-comments {
+            padding: 20px;
+            text-align: center;
+            color: #888;
+        }
+        
+        .login-message {
+            text-align: center;
+            color: #888;
+            padding: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="navbar">
+        <img src="QUOTIENT.svg" alt="logo" class="logo" onclick="window.location.href='/home.html'">
+        <input type="text" id="search-bar" placeholder="Search..." class="search-bar">
+        <div class="icons">
+            <div class="dropdown">
+                <button class="new-post-btn">+ New</button>
+                <div class="dropdown-content">
+                    <a href="new-community.html">Create Community</a>
+                    <a href="new-post.html">Create Post</a>
+                </div>
+            </div>
+            <img src="dm.svg" alt="Direct Messages" class="icon" onclick="window.location.href='/notifications.html'">
+            <div class="dropdown">
+                <img src="profilepic.svg" alt="Profile Picture" class="icon">
+                <div class="dropdown-content">
+                    <a href="/profile.html">Profile</a>
+                    <a href="/logout">Logout</a>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="content-wrapper">
+        <div id="app" class="container">
+            <!-- Loading State -->
+            <div v-if="loading" class="loading-container">
+                <p class="loading-message">Loading post...</p>
+            </div>
+            
+            <!-- Error State -->
+            <div v-else-if="error" class="error-container">
+                <p class="error-message">{{ error }}</p>
+                <button @click="loadPost" class="join-btn">Try Again</button>
+            </div>
+            
+            <!-- Post Content -->
+            <div class="post" v-else-if="post" style="cursor: default;">
+                <div class="post-header">
+                    <span class="community-name">{{ post.community }}</span>
+                    <span class="post-meta">Posted by {{ post.username }}</span>
+                </div>
+                <h3 class="post-title">{{ post.title }}</h3>
+                <p class="post-brief">{{ post.brief }}</p>
+                
+                <!-- Reactions -->
+                <div class="post-footer">
+                    <div class="reactions">
+                        <span v-for="(reaction, emoji) in post.reactions" 
+                              :key="emoji"
+                              @click.stop="addReaction(emoji)"
+                              :class="{'reaction': true, 'active-reaction': hasUserReacted(emoji)}"
+                              style="cursor: pointer;">
+                            {{ emoji }} {{ reaction.count }}
+                        </span>
+                    </div>
+                    <span class="comments-count">{{ post.comments ? post.comments.length : 0 }} comments</span>
+                </div>
+            </div>
+            
+            <!-- No Post Found -->
+            <div v-else class="error-container">
+                <p class="error-message">No post found</p>
+                <button onclick="window.location.href='/home.html'" class="join-btn">Back to Home</button>
+            </div>
+
+            <!-- Comments Section -->
+            <div class="comments-section" v-if="!loading && !error && post">
+                <h3>Comments</h3>
+                
+                <!-- Add Comment -->
+                <div class="add-comment" v-if="currentUser">
+                    <textarea v-model="newComment" 
+                              rows="3"
+                              placeholder="Add a comment..."></textarea>
+                    <button @click="addComment" class="join-btn">
+                        Post Comment
+                    </button>
+                </div>
+                <div class="add-comment" v-else>
+                    <p class="login-message">Please log in to add a comment</p>
+                </div>
+
+                <!-- Comments List -->
+                <div class="comments-list">
+                    <div v-if="post.comments && post.comments.length > 0">
+                        <div v-for="comment in post.comments" :key="comment._id" class="comment">
+                            <div class="comment-header">
+                                <span class="comment-username">{{ comment.username }}</span>
+                                <span class="comment-date">{{ formatDate(comment.createdAt) }}</span>
+                            </div>
+                            <p class="comment-content">{{ comment.content }}</p>
+                        </div>
+                    </div>
+                    <div v-else class="no-comments">
+                        <p>No comments yet. Be the first to comment!</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="right-sidebar">
+            <h3>Your Communities</h3>
+            <ul type="none" class="user-communities">
+                <p class="empty-message">Loading communities...</p>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        const { createApp } = Vue
+
+        createApp({
+            data() {
+                return {
+                    post: null,
+                    newComment: '',
+                    currentUser: null,
+                    loading: true,
+                    error: null
+                }
+            },
+            methods: {
+                async loadPost() {
+                    this.loading = true;
+                    this.error = null;
+                    const postId = new URLSearchParams(window.location.search).get('id');
+                    
+                    if (!postId) {
+                        this.error = "No post ID provided";
+                        this.loading = false;
+                        return;
+                    }
+                    
+                    try {
+                        const response = await fetch(`/api/post/${postId}`);
+                        
+                        if (!response.ok) {
+                            throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+                        }
+                        
+                        this.post = await response.json();
+                        console.log("Post loaded:", this.post);
+                    } catch (error) {
+                        console.error('Error loading post:', error);
+                        this.error = "Failed to load post. Please try again.";
+                    } finally {
+                        this.loading = false;
+                    }
+                },
+                formatDate(date) {
+                    return new Date(date).toLocaleDateString();
+                },
+                async addReaction(emoji) {
+                    if (!this.currentUser) return;
+                    
+                    const postId = new URLSearchParams(window.location.search).get('id');
+                    try {
+                        const response = await fetch(`/api/post/${postId}/react`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({ emoji })
+                        });
+                        
+                        if (!response.ok) {
+                            throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+                        }
+                        
+                        const updatedPost = await response.json();
+                        this.post.reactions = updatedPost.reactions;
+                    } catch (error) {
+                        console.error('Error adding reaction:', error);
+                        alert('Failed to add reaction. Please try again.');
+                    }
+                },
+                hasUserReacted(emoji) {
+                    return this.currentUser && 
+                           this.post && 
+                           this.post.reactions && 
+                           this.post.reactions[emoji] && 
+                           this.post.reactions[emoji].users && 
+                           this.post.reactions[emoji].users.includes(this.currentUser);
+                },
+                async addComment() {
+                    if (!this.newComment.trim() || !this.currentUser) return;
+
+                    const postId = new URLSearchParams(window.location.search).get('id');
+                    try {
+                        const response = await fetch(`/api/post/${postId}/comment`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                content: this.newComment
+                            })
+                        });
+                        
+                        if (!response.ok) {
+                            throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+                        }
+                        
+                        const updatedPost = await response.json();
+                        this.post.comments = updatedPost.comments;
+                        this.newComment = '';
+                    } catch (error) {
+                        console.error('Error adding comment:', error);
+                        alert('Failed to add comment. Please try again.');
+                    }
+                },
+                async getCurrentUser() {
+                    try {
+                        const response = await fetch('/api/current-user');
+                        
+                        if (!response.ok) {
+                            throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+                        }
+                        
+                        const data = await response.json();
+                        this.currentUser = data.username;
+                    } catch (error) {
+                        console.error('Error getting current user:', error);
+                    }
+                },
+                async loadUserCommunities() {
+                    try {
+                        const response = await fetch('/get-user-communities');
+                        
+                        if (!response.ok) {
+                            throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+                        }
+                        
+                        const communities = await response.json();
+                        const lists = document.querySelectorAll(".user-communities");
+                        
+                        lists.forEach(list => {
+                            if (communities.length === 0) {
+                                list.innerHTML = `<p class="empty-message">No communities joined.</p>`;
+                            } else {
+                                list.innerHTML = communities.map(c => `
+                                    <li>
+                                        <div class="community">
+                                            <span>${c}</span>
+                                            <button class="join-btn" onclick="leaveCommunity('${c}')">Leave</button>
+                                        </div>
+                                    </li>
+                                `).join("");
+                            }
+                        });
+                    } catch (error) {
+                        console.error('Error loading communities:', error);
+                    }
+                }
+            },
+            mounted() {
+                this.loadPost();
+                this.getCurrentUser();
+                this.loadUserCommunities();
+            }
+        }).mount('#app')
+        
+        // leaveCommunity function for the Leave buttons in the sidebar
+        async function leaveCommunity(community) {
+            try {
+                const response = await fetch('/leave-community', {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ community })
+                });
+
+                if (response.ok) {
+                    // Call the Vue instance method to reload communities
+                    document.querySelector('#app').__vue_app__.component.proxy.loadUserCommunities();
+                }
+            } catch (error) {
+                console.error('Error leaving community:', error);
+            }
+        }
+    </script>
+</body>
+</html>

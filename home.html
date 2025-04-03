@@ -21,10 +21,11 @@
                 </div>
             </div>
 
-            <img src="dm.svg" alt="Direct Messages" class="icon">
+            <img src="dm.svg" alt="Direct Messages" class="icon" onclick="window.location.href='/notifications.html'">
             <div class="dropdown">
                 <img src="profilepic.svg" alt="Profile Picture" class="icon">
                 <div class="dropdown-content">
+                    <a href="/profile.html">Profile</a>
                     <a href="/logout">Logout</a>
                 </div>
             </div>
@@ -44,7 +45,7 @@
 
         <div class="right-sidebar">
             <h3>Your Communities</h3>
-            <ul id="user-communities">
+            <ul type="none" id="user-communities">
                 <p class="empty-message">No communities joined.</p>
             </ul>
         </div>
@@ -59,107 +60,148 @@
             if (communities.length === 0) {
                 list.innerHTML = `<p class="empty-message">No communities joined.</p>`;
             } else {
-                list.innerHTML = communities.map(c => `<li>${c}</li>`).join("");
+                list.innerHTML = communities.map(c => `
+                    <li>
+                        <div class="community">
+                            <span>${c}</span>
+                            <button class="join-btn" onclick="leaveCommunity('${c}')">Leave</button>
+                        </div>
+                    </li>
+                `).join("");
+            }
+        }
+
+        async function leaveCommunity(community) {
+            try {
+                const response = await fetch('/leave-community', {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ community })
+                });
+
+                if (response.ok) {
+                    loadUserCommunities();
+                    handleSearch();
+                }
+            } catch (error) {
+                console.error('Error leaving community:', error);
             }
         }
         loadUserCommunities();
+        
+        // Function to handle post viewing and reactions
+        function viewPost(event, postId) {
+            // If the click was on a reaction button, don't navigate
+            if (event.target.classList.contains('reaction') || 
+                event.target.parentElement.classList.contains('reaction')) {
+                return;
+            }
+            
+            // Otherwise navigate to the post view page
+            window.location.href = `/post-view.html?id=${postId}`;
+        }
+        
+        async function reactToPost(event, postId, emoji) {
+            event.stopPropagation(); // Prevent the post click event
+            
+            try {
+                const response = await fetch(`/api/post/${postId}/react`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ emoji })
+                });
+                
+                if (response.ok) {
+                    // Refresh posts to show updated reaction count
+                    fetchPosts();
+                }
+            } catch (error) {
+                console.error('Error adding reaction:', error);
+            }
+        }
     </script>
         
     <script>
-        async function fetchPosts(query = "") {
-    try {
-        const response = await fetch("/getPosts");
-        const posts = await response.json();
+        async function fetchPosts() {
+            try {
+                const response = await fetch('/getPosts');
+                const posts = await response.json();
+                const container = document.getElementById('posts-container');
+                
+                if (posts.length === 0) {
+                    container.innerHTML = '<p class="empty-message">No posts yet.</p>';
+                    return;
+                }
 
-        if (!Array.isArray(posts)) {
-            console.error("Expected an array, but got:", posts);
-            return;
-        }
-
-        const filteredPosts = query
-            ? posts.filter(post => post.title.toLowerCase().includes(query.toLowerCase()))
-            : posts;
-
-        const container = document.getElementById("posts-container");
-        container.innerHTML = ""; 
-
-        if (filteredPosts.length === 0) {
-            container.innerHTML = `<p class="empty-message">No posts available.</p>`;
-            return;
-        }
-
-        filteredPosts.forEach(post => {
-            let reactionsHTML = Object.entries(post.reactions || {})
-                .sort((a, b) => b[1] - a[1])
-                .slice(0, 3)
-                .map(([emoji, count]) => `<span>${emoji} ${count}</span>`)
-                .join(" ");
-
-            container.innerHTML += `
-                <div class="post">
-                    <div class="community">
-                        <div class="profile-pic"></div>
-                        <span>${post.community}</span>
+                container.innerHTML = posts.map(post => `
+                    <div class="post" data-id="${post._id}" onclick="viewPost(event, '${post._id}')">
+                        <div class="post-header">
+                            <span class="community-name">${post.community}</span>
+                            <span class="post-meta">Posted by ${post.username}</span>
+                        </div>
+                        <h3 class="post-title">${post.title}</h3>
+                        <p class="post-brief">${post.brief}</p>
+                        <div class="post-footer">
+                            <div class="reactions">
+                                ${Object.entries(post.reactions).map(([emoji, data]) => `
+                                    <span class="reaction" onclick="reactToPost(event, '${post._id}', '${emoji}')">
+                                        ${emoji} ${data.count || 0}
+                                    </span>
+                                `).join('')}
+                            </div>
+                            <span class="comments-count">${post.comments ? post.comments.length : 0} comments</span>
+                        </div>
                     </div>
-                    <div class="post-content">
-                        <h3>${post.title}</h3>
-                        <p>${post.brief}</p>
-                        <div class="actions">${reactionsHTML}</div>
-                        <button class="discuss">Discuss</button>
-                    </div>
-                </div>`;
-        });
-    } catch (error) {
-        console.error("Error fetching posts:", error);
-    }
-}
-
-
-async function fetchCommunities(query) {
-    try {
-        const response = await fetch('/get-communities');
-        const communities = await response.json();
-
-        if (!Array.isArray(communities)) {
-            console.error("Expected an array, but got:", communities);
-            return;
+                `).join('');
+            } catch (error) {
+                console.error('Error fetching posts:', error);
+            }
         }
 
-        const filteredCommunities = communities.filter(comm => comm.toLowerCase().includes(query.toLowerCase()));
+        async function fetchCommunities(query) {
+            try {
+                const response = await fetch('/get-communities');
+                const communities = await response.json();
 
-        console.log("Filtered Communities:", filteredCommunities);
+                if (!Array.isArray(communities)) {
+                    console.error("Expected an array, but got:", communities);
+                    return;
+                }
 
-        const container = document.getElementById("posts-container");
-        container.innerHTML = ""; 
+                const filteredCommunities = communities.filter(comm => comm.toLowerCase().includes(query.toLowerCase()));
 
-        if (filteredCommunities.length === 0) {
-            container.innerHTML = `<p class="empty-message">No communities found.</p>`;
-            return;
+                console.log("Filtered Communities:", filteredCommunities);
+
+                const container = document.getElementById("posts-container");
+                container.innerHTML = ""; 
+
+                if (filteredCommunities.length === 0) {
+                    container.innerHTML = `<p class="empty-message">No communities found.</p>`;
+                    return;
+                }
+
+                const userCommunities = await fetch('/get-user-communities').then(res => res.json());
+
+                filteredCommunities.forEach(comm => {
+                    let isJoined = Array.isArray(userCommunities) && userCommunities.includes(comm);
+
+                    let communityItem = document.createElement("div");
+                    communityItem.className = "community-item";
+                    communityItem.innerHTML = `
+                        <span>${comm}</span>
+                        <button class="join-btn" ${isJoined ? 'disabled' : ''} onclick="joinCommunity('${comm}')">
+                            ${isJoined ? 'Joined' : 'Join'}
+                        </button>
+                    `;
+
+                    container.appendChild(communityItem);
+                });
+            } catch (error) {
+                console.error("Error fetching communities:", error);
+            }
         }
-
-        const userCommunities = await fetch('/get-user-communities').then(res => res.json());
-
-        filteredCommunities.forEach(comm => {
-            let isJoined = Array.isArray(userCommunities) && userCommunities.includes(comm);
-
-            let communityItem = document.createElement("div");
-            communityItem.className = "community-item";
-            communityItem.innerHTML = `
-                <span>${comm}</span>
-                <button class="join-btn" ${isJoined ? 'disabled' : ''} onclick="joinCommunity('${comm}')">
-                    ${isJoined ? 'Joined' : 'Join'}
-                </button>
-            `;
-
-            container.appendChild(communityItem);
-        });
-    } catch (error) {
-        console.error("Error fetching communities:", error);
-    }
-}
-
-
-
 
         async function joinCommunity(community) {
             const response = await fetch('/join-community', {
@@ -174,17 +216,76 @@ async function fetchCommunities(query) {
             }
         }
 
+        async function searchPosts(query) {
+            try {
+                const response = await fetch(`/api/search-posts?query=${encodeURIComponent(query)}`);
+                const posts = await response.json();
+                const container = document.getElementById('posts-container');
+                
+                if (posts.length === 0) {
+                    container.innerHTML = '<p class="empty-message">No matching posts found.</p>';
+                    return;
+                }
+
+                container.innerHTML = posts.map(post => `
+                    <div class="post" data-id="${post._id}" onclick="viewPost(event, '${post._id}')">
+                        <div class="post-header">
+                            <span class="community-name">${post.community}</span>
+                            <span class="post-meta">Posted by ${post.username}</span>
+                        </div>
+                        <h3 class="post-title">${post.title}</h3>
+                        <p class="post-brief">${post.brief}</p>
+                        <div class="post-footer">
+                            <div class="reactions">
+                                ${Object.entries(post.reactions).map(([emoji, data]) => `
+                                    <span class="reaction" onclick="reactToPost(event, '${post._id}', '${emoji}')">
+                                        ${emoji} ${data.count || 0}
+                                    </span>
+                                `).join('')}
+                            </div>
+                            <span class="comments-count">${post.comments ? post.comments.length : 0} comments</span>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                console.error('Error searching posts:', error);
+                document.getElementById('posts-container').innerHTML = 
+                    '<p class="empty-message">Error searching posts. Please try again.</p>';
+            }
+        }
+
         function handleSearch() {
             const query = document.getElementById("search-bar").value.trim();
 
             if (query.startsWith("quo.")) {
                 fetchCommunities(query);
+            } else if (query) {
+                searchPosts(query);
             } else {
-                fetchPosts(query);
+                fetchPosts();
             }
         }
 
-        fetchPosts(); 
+        // Check for search parameter in URL when page loads
+        function checkUrlForSearch() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const searchQuery = urlParams.get('search');
+            
+            if (searchQuery) {
+                document.getElementById("search-bar").value = searchQuery;
+                if (searchQuery.startsWith("quo.")) {
+                    fetchCommunities(searchQuery);
+                } else {
+                    searchPosts(searchQuery);
+                }
+            } else {
+                fetchPosts();
+            }
+        }
+
+        // Initialize the page
+        loadUserCommunities();
+        checkUrlForSearch();
     </script>
 
 </body>

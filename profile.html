@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Profile</title>
+    <link rel="stylesheet" href="home.css">
+    <style>
+        .welcome-banner {
+            background-color: #2a2a2a;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border: 1px solid #404040;
+            color: #ffffff;
+        }
+        
+        .welcome-banner h2 {
+            margin-top: 0;
+            color: #ffffff;
+        }
+        
+        .profile-stats {
+            display: flex;
+            gap: 20px;
+            margin-top: 10px;
+        }
+        
+        .stat-item {
+            background-color: rgba(31, 17, 163, 0.3);
+            border-radius: 4px;
+            padding: 5px 10px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="navbar">
+        <img src="QUOTIENT.svg" alt="logo" class="logo" onclick="window.location.href='/home.html'">
+        <input type="text" id="search-bar" placeholder="Search..." class="search-bar" oninput="handleSearch()">
+        <div class="icons">
+            
+            <div class="dropdown">
+                <button class="new-post-btn">+ New</button>
+                <div class="dropdown-content">
+                    <a href="new-community.html">Create Community</a>
+                    <a href="new-post.html">Create Post</a>
+                </div>
+            </div>
+
+            <img src="dm.svg" alt="Direct Messages" class="icon" onclick="window.location.href='/notifications.html'">
+            <div class="dropdown">
+                <img src="profilepic.svg" alt="Profile Picture" class="icon">
+                <div class="dropdown-content">
+                    <a href="/logout">Logout</a>
+                </div>
+            </div>
+            
+        </div>
+    </div>
+    
+    <div class="content-wrapper">
+        <div class="container">
+            <div class="main-content">
+                <div id="welcome-container" class="welcome-banner">
+                    <h2>Welcome back, <span id="username">User</span>!</h2>
+                    <div class="profile-stats">
+                        <div class="stat-item">Posts: <span id="post-count">0</span></div>
+                        <div class="stat-item">Communities: <span id="community-count">0</span></div>
+                    </div>
+                </div>
+                
+                <h2>Your Posts</h2>
+                <div id="posts-container">
+                    <p class="empty-message">Loading your posts...</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="right-sidebar">
+            <h3>Your Communities</h3>
+            <ul type="none" id="user-communities">
+                <p class="empty-message">No communities joined.</p>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        async function loadUserCommunities() {
+            const response = await fetch('/get-user-communities');
+            const communities = await response.json();
+            const list = document.getElementById("user-communities");
+            
+            if (communities.length === 0) {
+                list.innerHTML = `<p class="empty-message">No communities joined.</p>`;
+            } else {
+                list.innerHTML = communities.map(c => `
+                    <li>
+                        <div class="community">
+                            <span>${c}</span>
+                            <button class="join-btn" onclick="leaveCommunity('${c}')">Leave</button>
+                        </div>
+                    </li>
+                `).join("");
+            }
+            
+            // Update community count in profile stats
+            document.getElementById("community-count").textContent = communities.length;
+        }
+
+        async function leaveCommunity(community) {
+            try {
+                const response = await fetch('/leave-community', {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ community })
+                });
+
+                if (response.ok) {
+                    loadUserCommunities();
+                    fetchUserPosts();
+                }
+            } catch (error) {
+                console.error('Error leaving community:', error);
+            }
+        }
+        
+        // Function to handle post viewing and reactions
+        function viewPost(event, postId) {
+            // If the click was on a reaction button, don't navigate
+            if (event.target.classList.contains('reaction') || 
+                event.target.parentElement.classList.contains('reaction')) {
+                return;
+            }
+            
+            // Otherwise navigate to the post view page
+            window.location.href = `/post-view.html?id=${postId}`;
+        }
+        
+        async function reactToPost(event, postId, emoji) {
+            event.stopPropagation(); // Prevent the post click event
+            
+            try {
+                const response = await fetch(`/api/post/${postId}/react`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ emoji })
+                });
+                
+                if (response.ok) {
+                    // Refresh posts to show updated reaction count
+                    fetchUserPosts();
+                }
+            } catch (error) {
+                console.error('Error adding reaction:', error);
+            }
+        }
+        
+        async function fetchUserPosts() {
+            try {
+                const response = await fetch('/api/user/posts');
+                const posts = await response.json();
+                const container = document.getElementById('posts-container');
+                
+                if (posts.length === 0) {
+                    container.innerHTML = '<p class="empty-message">You haven\'t created any posts yet.</p>';
+                    document.getElementById("post-count").textContent = 0;
+                    return;
+                }
+
+                container.innerHTML = posts.map(post => `
+                    <div class="post" data-id="${post._id}" onclick="viewPost(event, '${post._id}')">
+                        <div class="post-header">
+                            <span class="community-name">${post.community}</span>
+                            <span class="post-meta">Posted by ${post.username}</span>
+                        </div>
+                        <h3 class="post-title">${post.title}</h3>
+                        <p class="post-brief">${post.brief}</p>
+                        <div class="post-footer">
+                            <div class="reactions">
+                                ${Object.entries(post.reactions).map(([emoji, data]) => `
+                                    <span class="reaction" onclick="reactToPost(event, '${post._id}', '${emoji}')">
+                                        ${emoji} ${data.count || 0}
+                                    </span>
+                                `).join('')}
+                            </div>
+                            <span class="comments-count">${post.comments ? post.comments.length : 0} comments</span>
+                        </div>
+                    </div>
+                `).join('');
+                
+                // Update post count in profile stats
+                document.getElementById("post-count").textContent = posts.length;
+            } catch (error) {
+                console.error('Error fetching user posts:', error);
+                document.getElementById('posts-container').innerHTML = 
+                    '<p class="empty-message">Error loading posts. Please try again.</p>';
+            }
+        }
+
+        async function getCurrentUser() {
+            try {
+                const response = await fetch('/api/current-user');
+                if (response.ok) {
+                    const data = await response.json();
+                    document.getElementById('username').textContent = data.username;
+                    return data.username;
+                }
+            } catch (error) {
+                console.error('Error getting current user:', error);
+            }
+            return null;
+        }
+
+        async function init() {
+            await getCurrentUser();
+            loadUserCommunities();
+            fetchUserPosts();
+        }
+
+        init();
+    </script>
+
+</body>
+</html>
